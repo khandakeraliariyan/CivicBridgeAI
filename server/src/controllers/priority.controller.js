@@ -1,26 +1,35 @@
 const priorityRepository = require("../repositories/priority.repository");
 
+const { verifyAssessmentOwnership, } = require("../services/ownership.service");
+
 const getPriorities = async (req, res) => {
     try {
-        const { assessmentId } =
-            req.params;
+        const { assessmentId } = req.params;
 
-        const { data } =
+        await verifyAssessmentOwnership(
+            assessmentId,
+            req.dbUser.id
+        );
+
+        const { data, error } =
             await priorityRepository.getPrioritiesByAssessmentId(
                 assessmentId
             );
 
-        res.json({
+        if (error) {
+            throw error;
+        }
+
+        return res.json({
             success: true,
             data,
         });
     } catch (error) {
         console.error(error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message:
-                error.message,
+            message: error.message,
         });
     }
 };

@@ -6,6 +6,8 @@ const verifyFirebaseToken = require("../middleware/auth.middleware");
 
 const { createAssessment, } = require("../controllers/assessment.controller");
 
-router.post("/", verifyFirebaseToken, createAssessment);
+const validateAssessment = require("../validators/assessment.validator");
+
+router.post("/", verifyFirebaseToken, validateAssessment, createAssessment);
 
 module.exports = router;

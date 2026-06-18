@@ -1,6 +1,6 @@
 # CivicBridgeAI Backend
 
-Backend API for **CivicBridgeAI**, an AI-assisted civic support platform that analyzes a user's crisis situation, estimates risk, generates priorities, and creates an actionable recovery roadmap.
+Backend API for **CivicBridgeAI**, an AI-assisted civic support platform that analyzes a user's crisis situation, estimates risk, generates priorities, creates an actionable recovery roadmap, simulates possible decisions, and recommends civic support resources.
 
 The server is built with **Node.js**, **Express**, **Firebase Admin**, **Supabase**, and **Google Gemini**.
 
@@ -28,10 +28,13 @@ The server is built with **Node.js**, **Express**, **Firebase Admin**, **Supabas
 - Automatic user synchronization into Supabase.
 - Crisis situation analysis using Gemini.
 - Risk assessment persistence.
-- AI-generated priority recommendations.
-- AI-generated recovery roadmap tasks.
-- Protected user profile endpoint.
-- Layered architecture with routes, controllers, services, repositories, prompts, and config modules.
+- AI-generated priority recommendations with persistence.
+- AI-generated recovery roadmap tasks with persistence.
+- Decision consequence simulation for saved assessments.
+- AI-powered resource matching from the `resources` table.
+- Ownership checks for assessment-scoped roadmap, priority, and simulation requests.
+- Request validators for assessment creation and simulation requests.
+- Layered architecture with routes, controllers, services, repositories, prompts, validators, and config modules.
 
 ## Tech Stack
 
@@ -56,35 +59,51 @@ server/
 |   |   `-- supabase.js
 |   |-- controllers/
 |   |   |-- assessment.controller.js
-|   |   `-- roadmap.controller.js
+|   |   |-- priority.controller.js
+|   |   |-- resource.controller.js
+|   |   |-- roadmap.controller.js
+|   |   `-- simulation.controller.js
 |   |-- middleware/
 |   |   `-- auth.middleware.js
 |   |-- prompts/
 |   |   |-- priority.prompt.js
+|   |   |-- resource-matching.prompt.js
 |   |   |-- roadmap.prompt.js
 |   |   |-- simulation.prompt.js
 |   |   `-- situation-analysis.prompt.js
 |   |-- repositories/
 |   |   |-- assessment.repository.js
 |   |   |-- priority.repository.js
+|   |   |-- resource.repository.js
 |   |   |-- risk.repository.js
 |   |   |-- roadmap.repository.js
+|   |   |-- simulation.repository.js
 |   |   `-- user.repository.js
 |   |-- routes/
 |   |   |-- assessment.routes.js
+|   |   |-- priority.routes.js
+|   |   |-- resource.routes.js
 |   |   |-- roadmap.routes.js
+|   |   |-- simulation.routes.js
 |   |   |-- test.routes.js
 |   |   `-- user.routes.js
-|   `-- services/
-|       |-- ai/
-|       |   |-- consequence-simulator.service.js
-|       |   |-- priority-engine.service.js
-|       |   |-- roadmap-generator.service.js
-|       |   `-- situation-analysis.service.js
-|       |-- assessment.service.js
-|       |-- risk.service.js
-|       |-- roadmap.service.js
-|       `-- user.service.js
+|   |-- services/
+|   |   |-- ai/
+|   |   |   |-- consequence-simulator.service.js
+|   |   |   |-- priority-engine.service.js
+|   |   |   |-- resource-matching.service.js
+|   |   |   |-- roadmap-generator.service.js
+|   |   |   `-- situation-analysis.service.js
+|   |   |-- assessment.service.js
+|   |   |-- ownership.service.js
+|   |   |-- priority.service.js
+|   |   |-- risk.service.js
+|   |   |-- roadmap.service.js
+|   |   |-- simulation.service.js
+|   |   `-- user.service.js
+|   `-- validators/
+|       |-- assessment.validator.js
+|       `-- simulation.validator.js
 |-- .env
 |-- package.json
 |-- package-lock.json
@@ -148,6 +167,8 @@ The backend uses Supabase as the persistence layer. The current repositories exp
 - `risk_assessments`
 - `priorities`
 - `roadmaps`
+- `simulations`
+- `resources`
 
 The server connects to Supabase through `src/config/supabase.js` using the service role key.
 
@@ -207,6 +228,8 @@ Base URL:
 http://localhost:5000/api
 ```
 
+All routes below are mounted in `src/app.js`.
+
 ### Get Current User
 
 Returns the authenticated Firebase user and the synced Supabase user.
@@ -215,43 +238,12 @@ Returns the authenticated Firebase user and the synced Supabase user.
 GET /api/users/me
 ```
 
-#### Headers
-
-```http
-Authorization: Bearer <firebase_id_token>
-```
-
-#### Success Response
-
-```json
-{
-  "success": true,
-  "firebaseUser": {
-    "uid": "firebase-user-id",
-    "email": "user@example.com"
-  },
-  "databaseUser": {
-    "id": "supabase-user-id",
-    "firebase_uid": "firebase-user-id",
-    "email": "user@example.com",
-    "name": ""
-  }
-}
-```
-
 ### Create Assessment
 
-Analyzes a user's situation, stores the assessment, creates a risk record, generates priorities, and creates a roadmap.
+Analyzes a user's situation, stores the assessment, creates a risk record, generates priorities, saves priorities, and creates roadmap tasks.
 
 ```http
 POST /api/assessments
-```
-
-#### Headers
-
-```http
-Authorization: Bearer <firebase_id_token>
-Content-Type: application/json
 ```
 
 #### Request Body
@@ -261,6 +253,8 @@ Content-Type: application/json
   "situation": "I lost my job, rent is due next week, and I do not have health insurance."
 }
 ```
+
+`situation` must contain at least 10 characters.
 
 #### Success Response
 
@@ -306,23 +300,11 @@ Content-Type: application/json
 
 ### Get Roadmap by Assessment
 
-Returns saved roadmap tasks for a specific assessment.
+Returns saved roadmap tasks for a specific assessment. The assessment must belong to the authenticated user.
 
 ```http
 GET /api/roadmaps/:assessmentId
 ```
-
-#### Headers
-
-```http
-Authorization: Bearer <firebase_id_token>
-```
-
-#### URL Parameters
-
-| Parameter | Description |
-| --- | --- |
-| `assessmentId` | Supabase assessment ID. |
 
 #### Success Response
 
@@ -340,19 +322,141 @@ Authorization: Bearer <firebase_id_token>
 }
 ```
 
+### Get Priorities by Assessment
+
+Returns saved priority recommendations for a specific assessment. The assessment must belong to the authenticated user.
+
+```http
+GET /api/priorities/:assessmentId
+```
+
+#### Success Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "priority-id",
+      "assessment_id": "assessment-id",
+      "priority_order": 1,
+      "title": "Secure emergency housing support",
+      "reasoning": "Rent is due soon and housing risk is high.",
+      "confidence_score": 95
+    }
+  ]
+}
+```
+
+### Create Decision Simulation
+
+Simulates the likely impact of a proposed decision for a saved assessment. The assessment must belong to the authenticated user.
+
+```http
+POST /api/simulations
+```
+
+#### Request Body
+
+```json
+{
+  "assessmentId": "assessment-id",
+  "decision": "Use my remaining savings to pay rent before applying for assistance."
+}
+```
+
+Both `assessmentId` and `decision` are required.
+
+#### Success Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "simulation": {
+      "housingImpact": "Expected housing effect",
+      "incomeImpact": "Expected income effect",
+      "healthImpact": "Expected health effect",
+      "summary": "Overall consequence summary",
+      "recommendedAction": "Suggested next action"
+    },
+    "savedSimulation": {
+      "id": "simulation-id",
+      "assessment_id": "assessment-id",
+      "decision": "Use my remaining savings to pay rent before applying for assistance."
+    }
+  }
+}
+```
+
+### Recommend Resources
+
+Uses the user's situation, analysis, and all rows from the `resources` table to generate matched support resources.
+
+```http
+POST /api/resources/recommend
+```
+
+#### Request Body
+
+```json
+{
+  "situation": "I lost my job and need rent support.",
+  "analysis": {
+    "housingRisk": "HIGH",
+    "incomeRisk": "HIGH",
+    "healthcareRisk": "LOW",
+    "overallRisk": "HIGH"
+  }
+}
+```
+
+#### Success Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "resources": [
+      {
+        "name": "Emergency Rental Assistance",
+        "reason": "Matches the user's immediate housing risk.",
+        "priority": "HIGH"
+      }
+    ]
+  }
+}
+```
+
+### Test Protected Route
+
+`src/routes/test.routes.js` defines this route, but it is not currently mounted in `src/app.js`.
+
+```http
+GET /protected
+```
+
 ## AI Workflow
 
 When a client creates an assessment, the backend runs this pipeline:
 
 1. `assessment.controller.js` receives the authenticated request.
-2. `assessment.service.js` sends the situation to Gemini for analysis.
-3. `situation-analysis.service.js` uses `situation-analysis.prompt.js`.
-4. The assessment is saved to the `assessments` table.
-5. Risk data is saved to the `risk_assessments` table.
-6. `priority-engine.service.js` generates the top priorities.
-7. `roadmap-generator.service.js` generates roadmap tasks.
-8. Roadmap tasks are saved to the `roadmaps` table.
-9. The full assessment result is returned to the client.
+2. `assessment.validator.js` validates the submitted `situation`.
+3. `assessment.service.js` sends the situation to Gemini for analysis.
+4. `situation-analysis.service.js` uses `situation-analysis.prompt.js`.
+5. The assessment is saved to the `assessments` table.
+6. Risk data is saved to the `risk_assessments` table.
+7. `priority-engine.service.js` generates the top priorities.
+8. `priority.service.js` saves priorities to the `priorities` table.
+9. `roadmap-generator.service.js` generates roadmap tasks.
+10. Roadmap tasks are saved to the `roadmaps` table.
+11. The full assessment result is returned to the client.
+
+### Additional AI Flows
+
+- `consequence-simulator.service.js` uses `simulation.prompt.js` to simulate decisions and stores results in `simulations`.
+- `resource-matching.service.js` uses `resource-matching.prompt.js` to match available resources to the user's situation and analysis.
+- AI services strip Markdown code fences before parsing JSON responses.
 
 ### Expected AI JSON Formats
 
@@ -399,14 +503,27 @@ When a client creates an assessment, the backend runs this pipeline:
 
 #### Decision Simulation
 
-The codebase includes a decision simulation service and prompt, although no route currently exposes it.
-
 ```json
 {
   "housingImpact": "Expected housing effect",
   "incomeImpact": "Expected income effect",
   "healthImpact": "Expected health effect",
-  "summary": "Overall consequence summary"
+  "summary": "Overall consequence summary",
+  "recommendedAction": "Suggested next action"
+}
+```
+
+#### Resource Matching
+
+```json
+{
+  "resources": [
+    {
+      "name": "Resource name",
+      "reason": "Why this resource is relevant",
+      "priority": "LOW|MEDIUM|HIGH"
+    }
+  ]
 }
 ```
 
@@ -448,13 +565,11 @@ The exact schema may vary, but the current code expects at least the following c
 | Column | Purpose |
 | --- | --- |
 | `id` | Primary priority ID. |
-| `assessment_id` | Suggested reference to the assessment. |
-| `order` | Priority order. |
+| `assessment_id` | References the assessment. |
+| `priority_order` | Priority order. |
 | `title` | Priority title. |
 | `reasoning` | Explanation for the priority. |
-| `confidence` | AI confidence score. |
-
-> Note: the current assessment flow generates priorities but does not currently persist them through `priority.repository.js`.
+| `confidence_score` | AI confidence score. |
 
 ### `roadmaps`
 
@@ -464,6 +579,30 @@ The exact schema may vary, but the current code expects at least the following c
 | `assessment_id` | References the assessment. |
 | `timeline` | Suggested timeline, such as `TODAY` or `THIS_WEEK`. |
 | `task` | Actionable task text. |
+
+### `simulations`
+
+| Column | Purpose |
+| --- | --- |
+| `id` | Primary simulation ID. |
+| `assessment_id` | References the assessment. |
+| `decision` | User's proposed decision. |
+| `housing_impact` | Simulated housing impact. |
+| `income_impact` | Simulated income impact. |
+| `health_impact` | Simulated health impact. |
+| `summary` | Overall simulation summary. |
+| `recommended_action` | Suggested next action. |
+
+### `resources`
+
+| Column | Purpose |
+| --- | --- |
+| `id` | Primary resource ID. |
+| `name` | Resource name. |
+| `description` | Resource details used by resource matching. |
+| `category` | Resource category, if available. |
+| `eligibility` | Eligibility notes, if available. |
+| `contact` | Contact or access information, if available. |
 
 ## Error Format
 
@@ -482,17 +621,19 @@ Common status codes:
 | --- | --- |
 | `201` | Assessment created successfully. |
 | `200` | Request completed successfully. |
+| `400` | Validation error, such as missing or too-short request fields. |
 | `401` | Missing, invalid, or expired Firebase token. |
-| `500` | Server, database, or AI provider error. |
+| `500` | Server, database, ownership, or AI provider error. |
 
 ## Development Notes
 
-- `src/app.js` registers the active API routes.
+- `src/app.js` registers user, assessment, roadmap, simulation, priority, and resource routes.
 - `src/server.js` loads environment variables and starts the HTTP server.
 - `src/middleware/auth.middleware.js` protects routes and syncs users.
+- `src/services/ownership.service.js` checks assessment ownership before returning assessment-scoped data.
 - `src/config/gemini.js` configures the Gemini model.
-- AI services strip Markdown code fences before parsing JSON.
 - `src/routes/test.routes.js` exists but is not currently mounted in `src/app.js`.
+- `src/routes/resource.routes.js` imports `assessment.validator.js`, but the resource route does not currently use it.
 - There is currently no automated test script configured in `package.json`.
 
 ## Useful Commands
@@ -510,4 +651,4 @@ npm start
 - Validate user input before expanding public usage.
 - Add rate limiting before production deployment.
 - Add stricter CORS configuration for production domains.
-- Consider adding ownership checks so users can only access their own assessments and roadmaps.
+- Keep ownership checks on all assessment-scoped reads and writes.

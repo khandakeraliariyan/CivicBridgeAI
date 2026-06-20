@@ -1,6 +1,7 @@
 const resourceRepository = require("../repositories/resource.repository");
 
 const { matchResources, } = require("../services/ai/resource-matching.service");
+const { sendError } = require("../utils/http-error");
 
 const getRecommendations = async (req, res) => {
     try {
@@ -22,11 +23,11 @@ const getRecommendations = async (req, res) => {
     } catch (error) {
         console.error(error);
 
-        res.status(500).json({
-            success: false,
-            message:
-                error.message,
-        });
+        return sendError(
+            res,
+            error,
+            "Unable to match resources right now."
+        );
     }
 };
 

@@ -16,7 +16,15 @@ const getRiskAssessment = async (assessmentId) => {
         .single();
 };
 
+const deleteRiskAssessmentByAssessmentId = async (assessmentId) => {
+    return await supabase
+        .from("risk_assessments")
+        .delete()
+        .eq("assessment_id", assessmentId);
+};
+
 module.exports = {
     createRiskAssessment,
     getRiskAssessment,
+    deleteRiskAssessmentByAssessmentId,
 };

@@ -20,6 +20,14 @@ const validateSimulation = (req, res, next) => {
         });
     }
 
+    if (String(decision).trim().length > 2000) {
+        return res.status(400).json({
+            success: false,
+            message:
+                "decision must be 2000 characters or fewer",
+        });
+    }
+
     next();
 };
 

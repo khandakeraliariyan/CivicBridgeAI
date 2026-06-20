@@ -3,6 +3,7 @@ import type { ApiErrorResponse } from "@/types/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api";
+const REQUEST_TIMEOUT_MS = 20000;
 
 export class ApiError extends Error {
   status: number;
@@ -39,15 +40,38 @@ async function request<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const token = await getIdToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...init.headers,
-    },
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...init.headers,
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(
+        "The server took too long to respond. Please try again.",
+        504,
+      );
+    }
+
+    throw error;
+  }
+
+  clearTimeout(timeoutId);
 
   const payload = await parseResponse(response);
 
@@ -77,6 +101,12 @@ export const apiClient = {
   post<T, TBody>(path: string, body: TBody) {
     return request<T>(path, {
       method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  patch<T, TBody>(path: string, body: TBody) {
+    return request<T>(path, {
+      method: "PATCH",
       body: JSON.stringify(body),
     });
   },

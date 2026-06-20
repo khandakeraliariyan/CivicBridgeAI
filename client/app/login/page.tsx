@@ -2,7 +2,7 @@
 
 import { Eye, Globe, LoaderCircle, LogIn } from "lucide-react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AuthSplitShell } from "@/components/auth/auth-split-shell";
 import { PublicSiteShell } from "@/components/landing/public-site-shell";
@@ -13,11 +13,13 @@ import { notify } from "@/lib/feedback";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signIn, signInWithGoogle, authLoading, isFirebaseReady } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const nextPath = searchParams.get("next") || "/dashboard";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,7 +28,7 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
       notify.success("Welcome back. Your workspace is ready.");
-      router.push("/dashboard");
+      router.push(nextPath);
     } catch (submitError) {
       const message =
         submitError instanceof Error
@@ -43,7 +45,7 @@ export default function LoginPage() {
     try {
       await signInWithGoogle();
       notify.success("Signed in successfully.");
-      router.push("/dashboard");
+      router.push(nextPath);
     } catch (signInError) {
       const message =
         signInError instanceof Error

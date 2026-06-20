@@ -7,3 +7,17 @@ export function fetchRoadmap(assessmentId: string) {
     `/roadmaps/${assessmentId}`,
   );
 }
+
+export interface UpdateRoadmapTaskBody {
+  status?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
+  dueAt?: string | null;
+  userNote?: string | null;
+  outcome?: string | null;
+}
+
+export function updateRoadmapTask(roadmapId: string, body: UpdateRoadmapTaskBody) {
+  return apiClient.patch<ApiSuccessResponse<RoadmapItem>, UpdateRoadmapTaskBody>(
+    `/roadmaps/${roadmapId}`,
+    body,
+  );
+}

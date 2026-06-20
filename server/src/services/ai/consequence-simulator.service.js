@@ -1,27 +1,17 @@
-const model = require("../../config/gemini");
-
 const { buildSimulationPrompt, } = require("../../prompts/simulation.prompt");
+const { runPrompt } = require("../../utils/ai-executor");
+const { normalizeSimulation } = require("../../utils/ai-normalizers");
 
 const simulateDecision = async (situation, analysis, decision) => {
-    const prompt =
-        buildSimulationPrompt(
+    return runPrompt({
+        prompt: buildSimulationPrompt(
             situation,
             analysis,
             decision
-        );
-
-    const result =
-        await model.generateContent(prompt);
-
-    const response =
-        result.response.text();
-
-    const cleaned = response
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-    return JSON.parse(cleaned);
+        ),
+        validator: (payload) => typeof payload === "object" && payload !== null,
+        normalizer: normalizeSimulation,
+    });
 };
 
 module.exports = {

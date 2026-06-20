@@ -40,7 +40,7 @@ export function LandingHero() {
             href="/register"
             className="inline-flex h-[56px] min-w-[210px] items-center justify-center gap-3 rounded-[12px] bg-[#173b72] px-6 text-[16px] font-semibold text-white"
           >
-            Start Assessment
+            Start New Case
             <ArrowRight className="h-4 w-4" strokeWidth={2.1} />
           </Link>
           <Link

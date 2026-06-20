@@ -1,6 +1,7 @@
 const priorityRepository = require("../repositories/priority.repository");
 
 const { verifyAssessmentOwnership, } = require("../services/ownership.service");
+const { sendError } = require("../utils/http-error");
 
 const getPriorities = async (req, res) => {
     try {
@@ -27,10 +28,7 @@ const getPriorities = async (req, res) => {
     } catch (error) {
         console.error(error);
 
-        return res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        return sendError(res, error, "Unable to load priorities right now.");
     }
 };
 

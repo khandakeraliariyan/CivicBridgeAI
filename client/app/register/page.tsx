@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Eye, Globe, LoaderCircle } from "lucide-react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AuthSplitShell } from "@/components/auth/auth-split-shell";
 import { PublicSiteShell } from "@/components/landing/public-site-shell";
@@ -14,6 +14,7 @@ import { notify } from "@/lib/feedback";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signUp, signInWithGoogle, authLoading, isFirebaseReady } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,6 +22,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const nextPath = searchParams.get("next") || "/dashboard";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,7 +31,7 @@ export default function RegisterPage() {
     try {
       await signUp(email, password, fullName);
       notify.success("Your account has been created.");
-      router.push("/dashboard");
+      router.push(nextPath);
     } catch (submitError) {
       const message =
         submitError instanceof Error
@@ -46,7 +48,7 @@ export default function RegisterPage() {
     try {
       await signInWithGoogle();
       notify.success("Your account is ready.");
-      router.push("/dashboard");
+      router.push(nextPath);
     } catch (signUpError) {
       const message =
         signUpError instanceof Error

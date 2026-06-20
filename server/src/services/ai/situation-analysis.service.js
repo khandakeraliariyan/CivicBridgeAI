@@ -1,23 +1,13 @@
-const model = require("../../config/gemini");
-
 const { buildSituationPrompt, } = require("../../prompts/situation-analysis.prompt");
+const { runPrompt } = require("../../utils/ai-executor");
+const { normalizeSituationAnalysis } = require("../../utils/ai-normalizers");
 
 const analyzeSituation = async (situation) => {
-    const prompt =
-        buildSituationPrompt(situation);
-
-    const result =
-        await model.generateContent(prompt);
-
-    const response =
-        result.response.text();
-
-    const cleaned = response
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-    return JSON.parse(cleaned);
+    return runPrompt({
+        prompt: buildSituationPrompt(situation),
+        validator: (payload) => typeof payload === "object" && payload !== null,
+        normalizer: normalizeSituationAnalysis,
+    });
 };
 
 module.exports = {

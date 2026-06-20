@@ -1,4 +1,5 @@
 const assessmentRepository = require("../repositories/assessment.repository");
+const roadmapRepository = require("../repositories/roadmap.repository");
 
 const verifyAssessmentOwnership = async (assessmentId, userId) => {
     const {
@@ -34,6 +35,27 @@ const verifyAssessmentOwnership = async (assessmentId, userId) => {
     return assessment;
 };
 
+const verifyRoadmapOwnership = async (roadmapId, userId) => {
+    const {
+        data: roadmapTask,
+        error,
+    } = await roadmapRepository.getRoadmapTaskById(roadmapId);
+
+    if (error || !roadmapTask) {
+        const err = new Error("Roadmap item not found");
+        err.statusCode = 404;
+        throw err;
+    }
+
+    await verifyAssessmentOwnership(
+        roadmapTask.assessment_id,
+        userId
+    );
+
+    return roadmapTask;
+};
+
 module.exports = {
     verifyAssessmentOwnership,
+    verifyRoadmapOwnership,
 };

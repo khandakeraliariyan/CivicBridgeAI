@@ -7,7 +7,7 @@ const savePriorities = async (assessmentId, priorities) => {
                 assessmentId,
 
             priority_order:
-                priority.order,
+                priority.order ?? priority.priority_order,
 
             title:
                 priority.title,

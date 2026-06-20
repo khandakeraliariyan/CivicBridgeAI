@@ -1,160 +1,284 @@
 "use client";
 
+import { AlertTriangle, BrainCircuit, CheckCircle2, LoaderCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import {
-  AlertTriangle,
-  ArrowRight,
-  BrainCircuit,
-  LoaderCircle,
-  Orbit,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
-import { useState } from "react";
-import { createAssessment } from "@/services/assessment-service";
-import { fetchPriorities } from "@/services/priority-service";
+  createAssessment,
+  screenAssessmentSafety,
+  type CreateAssessmentBody,
+  type SafetyScreeningResult,
+} from "@/services/assessment-service";
 import { fetchRecommendedResources } from "@/services/resource-service";
-import { fetchRoadmap } from "@/services/roadmap-service";
-import { createSimulation } from "@/services/simulation-service";
 import { ApiError } from "@/lib/api-client";
 import { notify } from "@/lib/feedback";
 import { useAssessmentWorkspace } from "@/hooks/use-assessment-workspace";
+import { frontendFeatures } from "@/lib/features";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import type { CreateAssessmentResult } from "@/services/assessment-service";
-import type {
-  Priority,
-  ResourceRecommendation,
-  RoadmapItem,
-} from "@/types/domain";
+import type { ResourceRecommendation } from "@/types/domain";
+
+const CONCERN_OPTIONS = [
+  "Housing or rent pressure",
+  "Job loss or reduced income",
+  "Food or essential needs",
+  "Healthcare or medication access",
+  "Personal safety concerns",
+  "Caregiving or dependent support",
+  "Legal, paperwork, or benefit access",
+];
+
+const SINGLE_SELECT_SECTIONS = [
+  {
+    key: "timePressure",
+    label: "How urgent is this situation?",
+    options: [
+      "Action is needed within 24 hours",
+      "Action is needed within 1 to 3 days",
+      "Action is needed within 1 to 2 weeks",
+      "Action is needed within 3 to 4 weeks",
+      "There is more than one month to respond",
+    ],
+  },
+  {
+    key: "housingStatus",
+    label: "Which housing status fits best right now?",
+    options: [
+      "Housing is stable",
+      "Rent or housing costs are difficult",
+      "I am behind on rent or at risk of losing housing",
+      "I received an eviction notice or urgent housing warning",
+      "I do not have a safe place to stay tonight",
+    ],
+  },
+  {
+    key: "incomeStatus",
+    label: "Which income situation fits best?",
+    options: [
+      "Income is stable",
+      "Hours or income were reduced",
+      "I recently lost income or employment",
+      "I am relying on savings or temporary support",
+      "I currently have no reliable income",
+    ],
+  },
+  {
+    key: "essentialNeedsStatus",
+    label: "How are basic needs right now?",
+    options: [
+      "Food, transport, and utilities are covered",
+      "Basic needs are covered for now but tight",
+      "Basic needs are under real pressure",
+      "I may lose access to essentials very soon",
+      "Food or essential daily needs are not covered",
+    ],
+  },
+  {
+    key: "healthcareStatus",
+    label: "How are healthcare needs right now?",
+    options: [
+      "Healthcare needs are managed",
+      "Care is delayed but not urgent",
+      "Medication or treatment is becoming difficult to access",
+      "An urgent health issue needs attention soon",
+      "A severe medical situation needs immediate help",
+    ],
+  },
+  {
+    key: "safetyStatus",
+    label: "How would you describe personal safety?",
+    options: [
+      "No current safety threat",
+      "Some concern, but not immediate danger",
+      "There is a real safety concern",
+      "I feel unsafe or under threat",
+      "There is immediate danger right now",
+    ],
+  },
+  {
+    key: "supportLevel",
+    label: "How much support is available?",
+    options: [
+      "Strong family, social, or financial support",
+      "Some support is available",
+      "Support is limited",
+      "Very few realistic options are available",
+      "I have no reliable support right now",
+    ],
+  },
+] as const;
+
+type IntakeProfile = NonNullable<CreateAssessmentBody["intakeProfile"]>;
+
+const EMPTY_PROFILE: IntakeProfile = {
+  primaryConcerns: [],
+  timePressure: "",
+  housingStatus: "",
+  incomeStatus: "",
+  essentialNeedsStatus: "",
+  healthcareStatus: "",
+  safetyStatus: "",
+  supportLevel: "",
+};
+
+function buildIntakeContextSummary(intakeProfile: IntakeProfile) {
+  const lines = [
+    intakeProfile.primaryConcerns?.length
+      ? `Primary concerns: ${intakeProfile.primaryConcerns.join(", ")}`
+      : null,
+    intakeProfile.timePressure ? `Time pressure: ${intakeProfile.timePressure}` : null,
+    intakeProfile.housingStatus ? `Housing status: ${intakeProfile.housingStatus}` : null,
+    intakeProfile.incomeStatus ? `Income status: ${intakeProfile.incomeStatus}` : null,
+    intakeProfile.essentialNeedsStatus
+      ? `Essential needs: ${intakeProfile.essentialNeedsStatus}`
+      : null,
+    intakeProfile.healthcareStatus
+      ? `Healthcare status: ${intakeProfile.healthcareStatus}`
+      : null,
+    intakeProfile.safetyStatus ? `Safety status: ${intakeProfile.safetyStatus}` : null,
+    intakeProfile.supportLevel ? `Support level: ${intakeProfile.supportLevel}` : null,
+  ].filter(Boolean);
+
+  return lines.length ? `\n\nStructured intake context:\n${lines.join("\n")}` : "";
+}
 
 export function AssessmentForm() {
-  const {
-    appendSimulation,
-    setWorkspace,
-    updatePriorities,
-    updateResources,
-    updateRoadmap,
-  } = useAssessmentWorkspace();
+  const router = useRouter();
+  const { setWorkspace } = useAssessmentWorkspace();
   const [situation, setSituation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<CreateAssessmentResult | null>(null);
-  const [savedPriorities, setSavedPriorities] = useState<Priority[]>([]);
-  const [savedRoadmap, setSavedRoadmap] = useState<RoadmapItem[]>([]);
-  const [recommendedResources, setRecommendedResources] = useState<
-    ResourceRecommendation[]
-  >([]);
-  const [followUpErrors, setFollowUpErrors] = useState<{
-    priorities?: string;
-    roadmap?: string;
-    resources?: string;
-  }>({});
-  const [loadingFollowUps, setLoadingFollowUps] = useState(false);
-  const [simulationDecision, setSimulationDecision] = useState("");
-  const [simulationSubmitting, setSimulationSubmitting] = useState(false);
-  const [simulationError, setSimulationError] = useState<string | null>(null);
-  const [simulationResult, setSimulationResult] = useState<Awaited<
-    ReturnType<typeof createSimulation>
-  >["data"] | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [safetyResult, setSafetyResult] = useState<SafetyScreeningResult | null>(null);
+  const [intakeProfile, setIntakeProfile] = useState<IntakeProfile>(EMPTY_PROFILE);
 
-  function resetConnectedState() {
-    setSavedPriorities([]);
-    setSavedRoadmap([]);
-    setRecommendedResources([]);
-    setFollowUpErrors({});
-    setSimulationDecision("");
-    setSimulationError(null);
-    setSimulationResult(null);
+  useEffect(() => {
+    setConsentAccepted(
+      window.localStorage.getItem("civicbridge.ai-consent") === "accepted",
+    );
+  }, []);
+
+  function updateConcern(option: string) {
+    setIntakeProfile((current) => {
+      const currentConcerns = current.primaryConcerns ?? [];
+      const nextConcerns = currentConcerns.includes(option)
+        ? currentConcerns.filter((item) => item !== option)
+        : [...currentConcerns, option];
+
+      return {
+        ...current,
+        primaryConcerns: nextConcerns,
+      };
+    });
+  }
+
+  function updateField(key: keyof IntakeProfile, value: string) {
+    setIntakeProfile((current) => ({
+      ...current,
+      [key]: value,
+    }));
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const loadingToastId = notify.loading("Creating your assessment...");
+
+    if (!consentAccepted) {
+      notify.error("Please confirm the AI guidance notice before continuing.");
+      return;
+    }
+
+    const loadingToastId = notify.loading("Opening your case workspace...");
+    const intakeContext = buildIntakeContextSummary(intakeProfile);
+
     setSubmitting(true);
     setError(null);
-    resetConnectedState();
+    setSafetyResult(null);
 
     try {
-      const response = await createAssessment({ situation });
+      if (frontendFeatures.enableEmergencyScreening) {
+        const screening = await screenAssessmentSafety({ situation });
+        setSafetyResult(screening.data);
+
+        if (screening.data.isUrgent) {
+          notify.error(
+            "Urgent safety concerns were detected. Please review the immediate guidance before continuing.",
+          );
+        }
+      }
+
+      const response = await createAssessment({
+        situation,
+        intakeProfile,
+      });
       const nextResult = response.data;
 
-      setResult(nextResult);
-      setSavedPriorities(nextResult.priorities.priorities);
-      setSavedRoadmap(nextResult.roadmap.roadmap);
-      setWorkspace({
-        situation,
-        assessment: nextResult.assessment,
-        analysis: nextResult.analysis,
-        priorities: nextResult.priorities.priorities,
-        roadmap: nextResult.roadmap.roadmap,
-        resources: [],
-        simulations: [],
-      });
-      setLoadingFollowUps(true);
+      let recommendedResources: ResourceRecommendation[] = [];
 
-      const [prioritiesResult, roadmapResult, resourcesResult] =
-        await Promise.allSettled([
-          fetchPriorities(nextResult.assessment.id),
-          fetchRoadmap(nextResult.assessment.id),
-          fetchRecommendedResources({
-            situation,
-            analysis: {
-              housingRisk: nextResult.analysis.housingRisk,
-              incomeRisk: nextResult.analysis.incomeRisk,
-              healthcareRisk: nextResult.analysis.healthcareRisk,
-              overallRisk: nextResult.analysis.overallRisk,
-            },
-          }),
-        ]);
-
-      if (prioritiesResult.status === "fulfilled") {
-        setSavedPriorities(prioritiesResult.value.data);
-        updatePriorities(prioritiesResult.value.data);
-      } else {
-        setFollowUpErrors((current) => ({
-          ...current,
-          priorities: "Your assessment was saved, but the priority list could not be refreshed yet.",
-        }));
+      try {
+        const resourcesResult = await fetchRecommendedResources({
+          situation: `${situation}${intakeContext}`,
+          analysis: {
+            housingRisk: nextResult.analysis.housingRisk,
+            incomeRisk: nextResult.analysis.incomeRisk,
+            healthcareRisk: nextResult.analysis.healthcareRisk,
+            overallRisk: nextResult.analysis.overallRisk,
+          },
+        });
+        recommendedResources = resourcesResult.data.resources;
+      } catch {
+        notify.info(
+          "Your case is ready. Resource suggestions will appear as soon as matching finishes.",
+        );
       }
 
-      if (roadmapResult.status === "fulfilled") {
-        setSavedRoadmap(roadmapResult.value.data);
-        updateRoadmap(roadmapResult.value.data);
-      } else {
-        setFollowUpErrors((current) => ({
-          ...current,
-          roadmap: "Your assessment was saved, but the roadmap could not be refreshed yet.",
-        }));
-      }
-
-      if (resourcesResult.status === "fulfilled") {
-        setRecommendedResources(resourcesResult.value.data.resources);
-        updateResources(resourcesResult.value.data.resources);
-      } else {
-        setFollowUpErrors((current) => ({
-          ...current,
-          resources:
-            "We couldn't load matched support resources yet.",
-        }));
-      }
+      setWorkspace(
+        {
+          situation,
+          assessment: nextResult.assessment,
+          analysis: nextResult.analysis,
+          priorities: nextResult.priorities.priorities,
+          roadmap: nextResult.roadmap.roadmap,
+          resources: recommendedResources,
+          simulations: [],
+          currentCase: nextResult.caseId
+            ? {
+                id: nextResult.caseId,
+                user_id: nextResult.assessment.user_id,
+                title: situation.slice(0, 80) || "New case",
+                status:
+                  nextResult.analysis.overallRisk === "HIGH"
+                    ? "URGENT"
+                    : nextResult.analysis.overallRisk === "LOW"
+                      ? "STABLE"
+                      : "ACTIVE",
+                main_risk: nextResult.analysis.overallRisk,
+                latest_stability_score: nextResult.analysis.stabilityScore,
+                current_assessment_id: nextResult.assessment.id,
+                last_activity_at: new Date().toISOString(),
+              }
+            : null,
+          resourceInteractions: [],
+          resourceInteractionsAvailable: frontendFeatures.enableResourceInteractions,
+          comparison: null,
+        },
+        {
+          selectedCaseId: nextResult.caseId ?? null,
+        },
+      );
 
       notify.dismiss(loadingToastId);
-      notify.success("Your assessment is ready.");
+      notify.success("Your case workspace is ready.");
 
-      if (
-        prioritiesResult.status !== "fulfilled" ||
-        roadmapResult.status !== "fulfilled" ||
-        resourcesResult.status !== "fulfilled"
-      ) {
-        notify.info(
-          "Some supporting details are still catching up. You can continue reviewing your results.",
-        );
+      if (nextResult.caseId) {
+        router.push(`/cases/${nextResult.caseId}`);
+      } else {
+        router.push("/dashboard");
       }
     } catch (submitError) {
       notify.dismiss(loadingToastId);
-      setResult(null);
+
       if (submitError instanceof ApiError) {
         const message =
           submitError.status === 500
@@ -169,326 +293,175 @@ export function AssessmentForm() {
       }
     } finally {
       notify.dismiss(loadingToastId);
-      setLoadingFollowUps(false);
       setSubmitting(false);
     }
   }
 
-  async function handleSimulationSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!result) {
-      return;
-    }
-
-    setSimulationSubmitting(true);
-    setSimulationError(null);
-    const loadingToastId = notify.loading("Comparing that option...");
-
-    try {
-      const response = await createSimulation({
-        assessmentId: result.assessment.id,
-        decision: simulationDecision,
-      });
-
-      setSimulationResult(response.data);
-      appendSimulation(response.data.simulation);
-      notify.dismiss(loadingToastId);
-      notify.success("Simulation complete.");
-    } catch (submitError) {
-      notify.dismiss(loadingToastId);
-      const message =
-        submitError instanceof Error
-          ? submitError.message
-          : "Unable to simulate that decision right now.";
-      setSimulationError(message);
-      notify.error(message);
-    } finally {
-      notify.dismiss(loadingToastId);
-      setSimulationSubmitting(false);
-    }
-  }
-
   return (
-    <div className="space-y-8">
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="p-6 md:p-7">
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-foreground">
-                Situation
-              </label>
-              <Textarea
-                value={situation}
-                onChange={(event) => setSituation(event.target.value)}
-                placeholder="Explain what you're facing in natural language. Include urgency, financial pressure, housing concerns, healthcare issues, or other overlapping factors."
-                rows={10}
+    <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <Card className="p-6 md:p-7">
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#8eaef5]">
+              New Case
+            </p>
+            <h2 className="mt-3 font-heading text-[2.65rem] font-bold tracking-[-0.05em] text-[#173b72]">
+              Describe what is happening
+            </h2>
+            <p className="mt-3 max-w-2xl text-[15px] leading-8 text-[#62728f]">
+              Share the situation in your own words, then answer a few quick questions
+              so Civic Bridge AI can score urgency more fairly and build a more useful plan.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-foreground">
+              Situation
+            </label>
+            <Textarea
+              value={situation}
+              onChange={(event) => setSituation(event.target.value)}
+              placeholder="Explain what you're facing, what feels urgent, what is at risk, and what decisions you are trying to make."
+              rows={10}
+            />
+            <p className="mt-2 text-sm text-muted-foreground">
+              Please enter at least 10 characters so the system can open a case around your situation.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#dbe4f4] bg-[#f7f9fe] px-4 py-4 text-sm text-[#62728f]">
+            <p className="font-semibold text-[#173b72]">Before you continue</p>
+            <p className="mt-2 leading-7">
+              Civic Bridge AI uses AI to interpret the case you submit. The results are
+              guidance only and do not replace legal, medical, or mental health professionals.
+              If you are facing an emergency, contact local emergency services or a trusted professional right away.
+            </p>
+            <label className="mt-4 flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setConsentAccepted(checked);
+                  if (checked) {
+                    window.localStorage.setItem("civicbridge.ai-consent", "accepted");
+                  } else {
+                    window.localStorage.removeItem("civicbridge.ai-consent");
+                  }
+                }}
+                className="mt-1 h-4 w-4 rounded border-[#cbd5e1]"
               />
-              <p className="mt-2 text-sm text-muted-foreground">
-                Please enter at least 10 characters so we can assess the
-                situation clearly.
+              <span>
+                I understand that AI will process this situation and that the results are advisory.
+              </span>
+            </label>
+          </div>
+
+          {safetyResult?.isUrgent ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger-soft px-4 py-4 text-sm text-danger">
+              <p className="font-semibold">{safetyResult.message}</p>
+              <p className="mt-2 leading-7">
+                {safetyResult.recommendedImmediateAction}
               </p>
             </div>
+          ) : null}
 
-            {error ? (
-              <div className="rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger">
-                {error}
-              </div>
-            ) : null}
+          {error ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger">
+              {error}
+            </div>
+          ) : null}
 
-            <Button type="submit" disabled={submitting || situation.trim().length < 10}>
-              {submitting ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <BrainCircuit className="h-4 w-4" />
-              )}
-              Submit Assessment
-            </Button>
-          </form>
-        </Card>
+          <Button type="submit" disabled={submitting || situation.trim().length < 10}>
+            {submitting ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <BrainCircuit className="h-4 w-4" />
+            )}
+            Start New Case
+          </Button>
+        </form>
+      </Card>
 
-        <Card className="p-6 md:p-7">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-strong text-danger">
-              <AlertTriangle className="h-5 w-5" />
+      <Card className="p-6 md:p-7">
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef4ff] text-[#173b72]">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-heading text-2xl font-bold text-foreground">
-                What You&apos;ll Receive
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                After submission, Civic Bridge AI can help you with:
+              <h3 className="font-heading text-[1.9rem] font-bold text-[#173b72]">
+                Quick Case Signals
+              </h3>
+              <p className="text-sm text-[#62728f]">
+                Select what applies so the assessment is more specific and less guess-based.
               </p>
             </div>
           </div>
-          <ul className="space-y-3 text-sm leading-7 text-muted-foreground">
-            <li>A clear stability score and concise risk summary</li>
-            <li>Prioritized concerns that need attention first</li>
-            <li>A roadmap of practical next steps</li>
-            <li>Matched support resources based on your situation</li>
-            <li>Decision comparisons to help you plan your next move</li>
-          </ul>
-        </Card>
-      </div>
 
-      {result ? (
-        <section className="grid gap-5 xl:grid-cols-3">
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground">Assessment</p>
-            <h3 className="mt-2 font-heading text-xl font-bold">
-              Stability Score
-            </h3>
-            <p className="mt-4 text-5xl font-bold text-primary">
-              {result.analysis.stabilityScore}
-            </p>
-            <p className="mt-3 text-sm text-muted-foreground">
-              {result.analysis.summary}
-            </p>
-          </Card>
+          <div>
+            <p className="text-sm font-semibold text-[#173b72]">Main concern areas</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {CONCERN_OPTIONS.map((option) => {
+                const active = intakeProfile.primaryConcerns?.includes(option);
 
-          <Card className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">Saved Priorities</p>
-              {loadingFollowUps ? (
-                <span className="inline-flex items-center gap-2 text-xs font-semibold text-secondary">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Syncing
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-4 space-y-3">
-              {savedPriorities.map((priority) => (
-                <div
-                  key={`${priority.id ?? priority.title ?? "priority"}-${priority.order ?? priority.priority_order ?? 0}`}
-                  className="rounded-2xl border border-border/70 bg-surface px-4 py-3"
-                >
-                  <p className="font-semibold text-foreground">
-                    {priority.title || "Priority item"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {priority.reasoning || "No explanation was returned."}
-                  </p>
-                </div>
-              ))}
-            </div>
-            {followUpErrors.priorities ? (
-              <p className="mt-4 text-sm text-danger">{followUpErrors.priorities}</p>
-            ) : null}
-          </Card>
-
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground">Saved Roadmap</p>
-            <div className="mt-4 space-y-3">
-              {savedRoadmap.map((item, index) => (
-                <div
-                  key={`${item.id ?? "roadmap"}-${item.timeline ?? "timeline"}-${item.task ?? "task"}-${index}`}
-                  className="rounded-2xl border border-border/70 bg-surface px-4 py-3"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
-                    {item.timeline || "NEXT STEP"}
-                  </p>
-                  <p className="mt-1 font-medium text-foreground">
-                    {item.task || "No roadmap task was returned."}
-                  </p>
-                </div>
-              ))}
-            </div>
-            {followUpErrors.roadmap ? (
-              <p className="mt-4 text-sm text-danger">{followUpErrors.roadmap}</p>
-            ) : null}
-          </Card>
-
-          <Card className="p-6 xl:col-span-2">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-strong text-primary">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-heading text-2xl font-bold text-foreground">
-                  Recommended Resources
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Support options matched to your current situation
-                </p>
-              </div>
-            </div>
-            {recommendedResources.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {recommendedResources.map((resource, index) => (
-                  <div
-                    key={`${resource.name ?? "resource"}-${resource.priority ?? "priority"}-${index}`}
-                    className="rounded-2xl border border-border/70 bg-surface px-4 py-4"
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => updateConcern(option)}
+                    className={
+                      active
+                        ? "rounded-full bg-[#173b72] px-3 py-2 text-sm font-semibold text-white"
+                        : "rounded-full border border-[#d9deea] bg-white px-3 py-2 text-sm font-semibold text-[#173b72]"
+                    }
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold text-foreground">
-                        {resource.name || "Recommended Resource"}
-                      </p>
-                      <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-                        {resource.priority || "MATCH"}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                      {resource.reason || "No explanation was returned."}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No resource matches yet"
-                message="Resource suggestions will appear here once matching results are available."
-              />
-            )}
-            {followUpErrors.resources ? (
-              <p className="mt-4 text-sm text-danger">{followUpErrors.resources}</p>
-            ) : null}
-          </Card>
-
-          <Card className="p-6">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-strong text-primary">
-                <Orbit className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-heading text-2xl font-bold text-foreground">
-                  Decision Simulation
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Compare possible next steps before you act
-                </p>
-              </div>
+                    {option}
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            <form className="space-y-4" onSubmit={handleSimulationSubmit}>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-foreground">
-                  Proposed Decision
-                </label>
-                <Textarea
-                  value={simulationDecision}
-                  onChange={(event) => setSimulationDecision(event.target.value)}
-                  placeholder="Example: Use my remaining savings to cover rent this week before applying for additional aid."
-                  rows={5}
-                />
-              </div>
+          <div className="space-y-5">
+            {SINGLE_SELECT_SECTIONS.map((section) => (
+              <div key={section.key}>
+                <p className="text-sm font-semibold text-[#173b72]">{section.label}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {section.options.map((option) => {
+                    const active = intakeProfile[section.key] === option;
 
-              {simulationError ? (
-                <div className="rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger">
-                  {simulationError}
-                </div>
-              ) : null}
-
-              <Button
-                type="submit"
-                disabled={simulationSubmitting || simulationDecision.trim().length < 5}
-              >
-                {simulationSubmitting ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-                Simulate Decision
-              </Button>
-            </form>
-
-            {simulationResult ? (
-              <div className="mt-6 space-y-3">
-                <div className="rounded-2xl border border-border/70 bg-surface px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
-                    Summary
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-foreground">
-                    {simulationResult.simulation.summary}
-                  </p>
-                </div>
-                <div className="grid gap-3">
-                  <div className="rounded-2xl border border-border/70 bg-surface px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
-                      Housing Impact
-                    </p>
-                    <p className="mt-2 text-sm text-foreground">
-                      {simulationResult.simulation.housingImpact ??
-                        simulationResult.simulation.housing_impact}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-surface px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
-                      Income Impact
-                    </p>
-                    <p className="mt-2 text-sm text-foreground">
-                      {simulationResult.simulation.incomeImpact ??
-                        simulationResult.simulation.income_impact}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-surface px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
-                      Health Impact
-                    </p>
-                    <p className="mt-2 text-sm text-foreground">
-                      {simulationResult.simulation.healthImpact ??
-                        simulationResult.simulation.health_impact}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-surface px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
-                      Recommended Action
-                    </p>
-                    <p className="mt-2 text-sm text-foreground">
-                      {simulationResult.simulation.recommendedAction ??
-                        simulationResult.simulation.recommended_action}
-                    </p>
-                  </div>
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => updateField(section.key, option)}
+                        className={
+                          active
+                            ? "rounded-[16px] border border-[#173b72] bg-[#eef4ff] px-4 py-3 text-left text-sm font-semibold text-[#173b72]"
+                            : "rounded-[16px] border border-[#d9deea] bg-white px-4 py-3 text-left text-sm text-[#5f6f8a]"
+                        }
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            ) : null}
-          </Card>
-        </section>
-      ) : (
-        <EmptyState
-          title="No assessment result yet"
-          message="Complete an assessment to view your score, priorities, roadmap, resource suggestions, and decision planning in one place."
-        />
-      )}
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-[#f4ddd8] bg-[#fff5f2] px-4 py-4 text-sm text-[#bf4a34]">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4" />
+              <p className="leading-7">
+                These answers help the model weigh both stabilizing and destabilizing evidence.
+                They do not replace the full situation description.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

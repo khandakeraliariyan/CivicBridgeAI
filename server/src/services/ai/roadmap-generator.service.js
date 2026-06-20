@@ -1,26 +1,17 @@
-const model = require("../../config/gemini");
-
 const { buildRoadmapPrompt, } = require("../../prompts/roadmap.prompt");
+const { runPrompt } = require("../../utils/ai-executor");
+const { normalizeRoadmap } = require("../../utils/ai-normalizers");
 
 const generateRoadmap = async (situation, analysis, priorities) => {
-    const prompt = buildRoadmapPrompt(
-        situation,
-        analysis,
-        priorities
-    );
-
-    const result =
-        await model.generateContent(prompt);
-
-    const response =
-        result.response.text();
-
-    const cleaned = response
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-    return JSON.parse(cleaned);
+    return runPrompt({
+        prompt: buildRoadmapPrompt(
+            situation,
+            analysis,
+            priorities
+        ),
+        validator: (payload) => typeof payload === "object" && payload !== null,
+        normalizer: normalizeRoadmap,
+    });
 };
 
 module.exports = {

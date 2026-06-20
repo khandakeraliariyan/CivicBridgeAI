@@ -3,27 +3,26 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  BriefcaseBusiness,
   Cog,
-  FolderOpen,
   Home,
   LayoutDashboard,
   LogOut,
-  Route,
-  TrendingUp,
   X,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/hooks/use-auth";
+import { frontendFeatures } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/assessments/new", label: "New Assessment", icon: Home },
-  { href: "/roadmap", label: "Roadmap", icon: Route },
-  { href: "/resources", label: "Resources", icon: FolderOpen },
-  { href: "/progress", label: "Progress", icon: TrendingUp },
+  { href: "/assessments/new", label: "New Case", icon: Home },
+  ...(frontendFeatures.enableCaseHistory
+    ? [{ href: "/cases", label: "Cases", icon: BriefcaseBusiness }]
+    : []),
   { href: "/settings", label: "Settings", icon: Cog },
 ];
 
@@ -52,13 +51,11 @@ export function MobileNav({
       >
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-              <Image
-                src={logo}
-                alt="Civic Bridge AI logo"
-                className="h-7 w-7 object-contain"
-              />
-            </div>
+            <Image
+              src={logo}
+              alt="Civic Bridge AI logo"
+              className="h-11 w-11 object-contain"
+            />
             <div>
               <p className="font-heading text-[1.05rem] font-bold leading-tight text-primary">
                 Civic Bridge AI

@@ -6,6 +6,15 @@ const getAllResources = async () => {
         .select("*");
 };
 
+const getResourceById = async (resourceId) => {
+    return await supabase
+        .from("resources")
+        .select("*")
+        .eq("id", resourceId)
+        .single();
+};
+
 module.exports = {
     getAllResources,
+    getResourceById,
 };

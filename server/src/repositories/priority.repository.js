@@ -23,7 +23,15 @@ const getPrioritiesByAssessmentId = async (assessmentId) => {
         );
 };
 
+const deletePrioritiesByAssessmentId = async (assessmentId) => {
+    return await supabase
+        .from("priorities")
+        .delete()
+        .eq("assessment_id", assessmentId);
+};
+
 module.exports = {
     createPriorities,
     getPrioritiesByAssessmentId,
+    deletePrioritiesByAssessmentId,
 };

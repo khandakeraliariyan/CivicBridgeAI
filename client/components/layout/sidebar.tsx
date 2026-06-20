@@ -3,26 +3,23 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  AlertTriangle,
+  BriefcaseBusiness,
   Cog,
-  FolderOpen,
-  House,
   LayoutDashboard,
   NotebookPen,
-  Route,
-  TrendingUp,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import logo from "@/assets/logo.png";
+import { frontendFeatures } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 const mainItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/assessments/new", label: "New Assessment", icon: NotebookPen },
-  { href: "/roadmap", label: "Roadmap", icon: Route },
-  { href: "/resources", label: "Resources", icon: FolderOpen },
-  { href: "/progress", label: "Progress", icon: TrendingUp },
+  { href: "/assessments/new", label: "New Case", icon: NotebookPen },
+  ...(frontendFeatures.enableCaseHistory
+    ? [{ href: "/cases", label: "Cases", icon: BriefcaseBusiness }]
+    : []),
   { href: "/settings", label: "Settings", icon: Cog },
 ];
 
@@ -33,13 +30,11 @@ export function Sidebar() {
     <aside className="hidden w-[260px] shrink-0 flex-col overflow-hidden border-r border-[#d9deea] bg-[#fdfdff] md:flex">
       <div className="px-6 py-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#173b72] text-white">
-            <Image
-              src={logo}
-              alt="Civic Bridge AI logo"
-              className="h-[26px] w-[26px] object-contain"
-            />
-          </div>
+          <Image
+            src={logo}
+            alt="Civic Bridge AI logo"
+            className="h-[42px] w-[42px] object-contain"
+          />
           <div>
             <p className="font-heading text-[1.15rem] font-bold leading-tight text-[#173b72]">
               Civic Bridge AI
@@ -52,13 +47,6 @@ export function Sidebar() {
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4">
-        <div className="mb-5 rounded-xl bg-[#c44332] px-4 py-3 text-sm font-semibold text-white">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            Emergency Help
-          </div>
-        </div>
-
         <nav className="space-y-2">
           {mainItems.map((item) => {
             const Icon = item.icon;
@@ -81,19 +69,6 @@ export function Sidebar() {
             );
           })}
         </nav>
-
-        <div className="mt-auto border-t border-[#e6ebf4] px-2 pt-5">
-          <div className="rounded-xl px-2 py-3 text-sm text-[#49556d]">
-            <div className="flex items-center gap-2 text-[#173b72]">
-              <House className="h-4 w-4" />
-              <p className="font-semibold">Your workspace is active</p>
-            </div>
-            <p className="mt-2 leading-6 text-[#7c879e]">
-              Your latest assessment, action plan, resources, and progress are
-              available across the app.
-            </p>
-          </div>
-        </div>
       </div>
     </aside>
   );

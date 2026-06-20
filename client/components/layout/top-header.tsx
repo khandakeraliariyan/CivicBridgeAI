@@ -3,32 +3,52 @@
 import { usePathname } from "next/navigation";
 import { UserMenu } from "@/components/layout/user-menu";
 
-const routeTitles: Record<string, { title: string; subtitle: string }> = {
-  "/dashboard": {
+const routeTitles: Array<{
+  route: string;
+  title: string;
+  subtitle: string;
+}> = [
+  {
+    route: "/cases/",
+    title: "Case Workspace",
+    subtitle: "Work one case across summary, tasks, resources, progress, and notes.",
+  },
+  {
+    route: "/dashboard",
     title: "Overview",
-    subtitle: "Here is your current stability summary and active tasks.",
+    subtitle: "Review the currently selected case and the next actions that matter most.",
   },
-  "/assessments/new": {
-    title: "New Assessment",
-    subtitle: "Describe the situation and generate a real support plan.",
+  {
+    route: "/assessments/new",
+    title: "Start New Case",
+    subtitle: "Describe the situation and open a full case workspace.",
   },
-  "/roadmap": {
+  {
+    route: "/cases",
+    title: "Cases",
+    subtitle: "Manage active, resolved, and archived case workspaces.",
+  },
+  {
+    route: "/roadmap",
     title: "Roadmap",
-    subtitle: "Review the generated next-step recovery plan.",
+    subtitle: "Review the selected case action plan and update next steps.",
   },
-  "/resources": {
+  {
+    route: "/resources",
     title: "Resources",
-    subtitle: "Matched support resources based on your latest assessment.",
+    subtitle: "Review matched support options and tracked case outreach.",
   },
-  "/progress": {
+  {
+    route: "/progress",
     title: "Progress",
-    subtitle: "Track simulations and current recovery momentum.",
+    subtitle: "Track progress across the selected case, not just one snapshot.",
   },
-  "/settings": {
+  {
+    route: "/settings",
     title: "Settings",
     subtitle: "View your Civic Bridge AI profile and account details.",
   },
-};
+];
 
 export function TopHeader({
   menuButton,
@@ -36,9 +56,7 @@ export function TopHeader({
   menuButton: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const routeMeta = Object.entries(routeTitles).find(([route]) =>
-    pathname.startsWith(route),
-  )?.[1] ?? {
+  const routeMeta = routeTitles.find(({ route }) => pathname.startsWith(route)) ?? {
     title: "Civic Bridge AI",
     subtitle: "Personalized support planning and guided next steps.",
   };

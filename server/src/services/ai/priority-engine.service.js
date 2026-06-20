@@ -1,25 +1,16 @@
-const model = require("../../config/gemini");
-
 const { buildPriorityPrompt, } = require("../../prompts/priority.prompt");
+const { runPrompt } = require("../../utils/ai-executor");
+const { normalizePriorities } = require("../../utils/ai-normalizers");
 
 const generatePriorities = async (situation, riskAnalysis) => {
-    const prompt =
-        buildPriorityPrompt(
+    return runPrompt({
+        prompt: buildPriorityPrompt(
             situation,
             riskAnalysis
-        );
-
-    const result = await model.generateContent(prompt);
-
-    const response =
-        result.response.text();
-
-    const cleaned = response
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-    return JSON.parse(cleaned);
+        ),
+        validator: (payload) => typeof payload === "object" && payload !== null,
+        normalizer: normalizePriorities,
+    });
 };
 
 module.exports = {

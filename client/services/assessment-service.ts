@@ -4,10 +4,29 @@ import type { Assessment, Priority, RiskAnalysis, RoadmapItem } from "@/types/do
 
 export interface CreateAssessmentBody {
   situation: string;
+  intakeProfile?: {
+    primaryConcerns?: string[];
+    timePressure?: string;
+    housingStatus?: string;
+    incomeStatus?: string;
+    essentialNeedsStatus?: string;
+    healthcareStatus?: string;
+    safetyStatus?: string;
+    supportLevel?: string;
+  };
+}
+
+export interface SafetyScreeningResult {
+  isUrgent: boolean;
+  categories: string[];
+  message: string;
+  recommendedImmediateAction: string;
+  continueNormalAssessment: boolean;
 }
 
 export interface CreateAssessmentResult {
   assessment: Assessment;
+  caseId?: string | null;
   analysis: RiskAnalysis;
   priorities: {
     priorities: Priority[];
@@ -20,6 +39,13 @@ export interface CreateAssessmentResult {
 export function createAssessment(body: CreateAssessmentBody) {
   return apiClient.post<ApiSuccessResponse<CreateAssessmentResult>, CreateAssessmentBody>(
     "/assessments",
+    body,
+  );
+}
+
+export function screenAssessmentSafety(body: CreateAssessmentBody) {
+  return apiClient.post<ApiSuccessResponse<SafetyScreeningResult>, CreateAssessmentBody>(
+    "/assessments/safety-screening",
     body,
   );
 }

@@ -10,7 +10,14 @@ ${JSON.stringify(analysis)}
 Available Resources:
 ${JSON.stringify(resources)}
 
-Match the most relevant resources.
+Match the most relevant resources for this exact case.
+
+Rules:
+- Prefer resources that directly address the user's most urgent blockers.
+- Use stabilizing and destabilizing details from the situation, not only the risk labels.
+- Recommend the most actionable resources first.
+- Avoid weak matches just to fill the list.
+- Return 3 to 5 resources when possible.
 
 Return ONLY JSON.
 
@@ -18,7 +25,8 @@ Return ONLY JSON.
   "resources":[
     {
       "title":"",
-      "reason":""
+      "reason":"",
+      "priority":"LOW|MEDIUM|HIGH"
     }
   ]
 }

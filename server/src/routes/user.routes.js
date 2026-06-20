@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const verifyFirebaseToken = require("../middleware/auth.middleware");
+const { sendError } = require("../utils/http-error");
 
 router.get("/me", verifyFirebaseToken, async (req, res) => {
     try {
@@ -12,10 +13,7 @@ router.get("/me", verifyFirebaseToken, async (req, res) => {
             databaseUser: req.dbUser,
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        return sendError(res, error, "Unable to load the current user.");
     }
 }
 );

@@ -18,3 +18,7 @@ export function createSimulation(body: CreateSimulationBody) {
     CreateSimulationBody
   >("/simulations", body);
 }
+
+export function fetchCaseSimulations(caseId: string) {
+  return apiClient.get<ApiSuccessResponse<Simulation[]>>(`/cases/${caseId}/simulations`);
+}

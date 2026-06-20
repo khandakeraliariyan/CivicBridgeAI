@@ -16,7 +16,24 @@ const getAssessmentById = async (assessmentId) => {
         .single();
 };
 
+const getAssessmentsByCaseId = async (caseId) => {
+    return await supabase
+        .from("assessments")
+        .select("*")
+        .eq("case_id", caseId)
+        .order("created_at", { ascending: false });
+};
+
+const deleteAssessmentById = async (assessmentId) => {
+    return await supabase
+        .from("assessments")
+        .delete()
+        .eq("id", assessmentId);
+};
+
 module.exports = {
     createAssessment,
-    getAssessmentById
+    getAssessmentById,
+    getAssessmentsByCaseId,
+    deleteAssessmentById,
 };

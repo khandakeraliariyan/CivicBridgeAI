@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { UserMenu } from "@/components/layout/user-menu";
 
 const routeTitles: Array<{
   route: string;
@@ -53,7 +52,7 @@ export function TopHeader({
 
   return (
     <header className="border-b border-[#d9deea] bg-[#fdfdff] px-4 py-4 md:px-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
         <div className="flex min-w-0 items-center gap-3">
           {menuButton}
           <div className="min-w-0">
@@ -62,8 +61,6 @@ export function TopHeader({
             </h1>
           </div>
         </div>
-
-        <UserMenu />
       </div>
     </header>
   );

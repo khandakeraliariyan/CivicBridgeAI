@@ -158,7 +158,10 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <UrgentTasksCard priorities={workspace.priorities} />
+        <UrgentTasksCard
+          priorities={workspace.priorities}
+          caseId={activeCaseId}
+        />
         <RoadmapPlanCard roadmap={workspace.roadmap} />
       </section>
     </div>

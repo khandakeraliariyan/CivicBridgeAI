@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, RefreshCw } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -77,18 +77,17 @@ export function CasesPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<CaseStatus | "ALL">("ALL");
-  const [showArchived, setShowArchived] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   const requestQuery = useMemo(
     () => ({
       page,
       limit: 8,
-      archived: showArchived,
+      archived: false,
       status: statusFilter === "ALL" ? undefined : statusFilter,
       sort: "updated_desc" as const,
     }),
-    [page, showArchived, statusFilter],
+    [page, statusFilter],
   );
   const validItems = items.filter(
     (item) => typeof item.id === "string" && item.id.length > 0,
@@ -194,24 +193,6 @@ export function CasesPageContent() {
             >
               Start New Case
             </Link>
-            <Button
-              type="button"
-              variant={showArchived ? "default" : "outline"}
-              onClick={() => {
-                setPage(1);
-                setShowArchived((current) => !current);
-              }}
-            >
-              {showArchived ? "Showing archived cases" : "Hide archived cases"}
-            </Button>
-            <button
-              type="button"
-              onClick={() => setRefreshNonce((current) => current + 1)}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#173b72]"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
           </div>
         </div>
       </section>
@@ -316,14 +297,14 @@ export function CasesPageContent() {
       ) : (
         <section className="rounded-[22px] border border-[#dbe4f4] bg-white p-8 shadow-[0_8px_20px_-18px_rgba(17,43,89,0.3)]">
           <EmptyState
-            title={statusFilter === "ALL" && !showArchived ? "No saved cases yet" : "No cases match this view"}
+            title={statusFilter === "ALL" ? "No saved cases yet" : "No cases match this view"}
             message={
-              statusFilter === "ALL" && !showArchived
+              statusFilter === "ALL"
                 ? "Start a new case to create your first workspace and keep a durable history of your crisis navigation."
                 : "Try another filter or include archived cases to see more results."
             }
             action={
-              statusFilter === "ALL" && !showArchived ? (
+              statusFilter === "ALL" ? (
                 <Link
                   href="/assessments/new"
                   className="inline-flex items-center gap-2 rounded-[12px] bg-[#173b72] px-4 py-2.5 font-semibold text-white"
